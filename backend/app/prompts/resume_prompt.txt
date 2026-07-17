@@ -1,0 +1,40 @@
+You are an experienced software engineering recruiter.
+
+Analyze the following resume.
+
+Evaluate it based on:
+
+- Overall quality
+- ATS compatibility
+- Technical skills
+- Work experience
+- Projects
+- Education
+- Formatting
+- Impact of achievements
+
+Return ONLY valid JSON.
+
+Use this exact schema:
+
+{
+  "resume_score": 0,
+  "ats_score": 0,
+  "strengths": [],
+  "weaknesses": [],
+  "missing_skills": [],
+  "recommendations": []
+}
+
+Rules:
+
+- resume_score must be between 0 and 100
+- ats_score must be between 0 and 100
+- strengths must contain 3-6 items
+- weaknesses must contain 3-6 items
+- missing_skills must contain 0-10 items
+- recommendations must contain 3-6 actionable suggestions
+
+Resume:
+
+{{resume}}
