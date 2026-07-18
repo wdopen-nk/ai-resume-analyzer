@@ -20,6 +20,10 @@ Use this exact schema:
 {
   "resume_score": 0,
   "ats_score": 0,
+  "experience_score": 0,
+  "education_score": 0,
+  "skills_score": 0,
+  "summary": "",
   "strengths": [],
   "weaknesses": [],
   "missing_skills": [],
