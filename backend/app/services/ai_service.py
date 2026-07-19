@@ -3,12 +3,13 @@ import json
 from ollama import chat
 
 from app.services.prompt_service import PromptService
+from app.config import settings
 
 
 class AIService:
     """Communicates with the Ollama model."""
 
-    MODEL = "qwen2.5:7b"  # Change if using another model
+    MODEL = settings.OLLAMA_MODEL  # Change if using another model
 
     @classmethod
     def analyze_resume(cls, resume_text: str) -> dict:
