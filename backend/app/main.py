@@ -1,26 +1,26 @@
 from fastapi import FastAPI
 
-from app.database.init_db import init_db
 from app.api.resume import router as resume_router
+from app.config import settings
+from app.database.init_db import init_db
+from app.logger import logger
 
 app = FastAPI(
-    title="AI Resume Analyzer",
-    version="1.0.0"
+    title=settings.APP_NAME,
+    version=settings.APP_VERSION,
 )
 
 init_db()
 
+logger.info("Database initialized.")
+
 app.include_router(resume_router)
+
 
 @app.get("/")
 def root():
-    return {
-        "message": "AI Resume Analyzer API is running!"
-    }
+    logger.info("Health check requested.")
 
-
-@app.get("/health")
-def health():
     return {
-        "status": "healthy"
+        "message": f"{settings.APP_NAME} API is running."
     }
