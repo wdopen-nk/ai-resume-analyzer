@@ -1,0 +1,22 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: resume-backend
+    volumes:
+      - ./backend/data:/app/data
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      BACKEND_URL: http://backend:8000
+    container_name: resume-frontend
+    ports:
+      - "8501:8501"
+    depends_on:
+      - backend
