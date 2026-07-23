@@ -32,6 +32,7 @@ class DatabaseService:
                 resume_id=resume.id,
                 resume_score=analysis["resume_score"],
                 ats_score=analysis["ats_score"],
+                skills_score=analysis["skills_score"],
                 strengths=json.dumps(analysis["strengths"]),
                 weaknesses=json.dumps(analysis["weaknesses"]),
                 missing_skills=json.dumps(analysis["missing_skills"]),
@@ -73,7 +74,8 @@ class DatabaseService:
                     "filename": resume.filename,
                     "uploaded_at": resume.uploaded_at,
                     "resume_score": analysis.resume_score,
-                    "ats_score": analysis.ats_score
+                    "ats_score": analysis.ats_score,
+                    "skills_score": analysis.skills_score,
                 })
 
             return history
@@ -114,12 +116,48 @@ class DatabaseService:
 
                 "resume_score": analysis.resume_score,
                 "ats_score": analysis.ats_score,
+                "skills_score": analysis.skills_score,
 
                 "strengths": json.loads(analysis.strengths),
                 "weaknesses": json.loads(analysis.weaknesses),
                 "missing_skills": json.loads(analysis.missing_skills),
                 "recommendations": json.loads(analysis.recommendations),
             }
+
+        finally:
+            db.close()
+
+
+    @staticmethod
+    def delete_resume(resume_id: int) -> bool:
+
+        db = SessionLocal()
+
+        try:
+
+            resume = (
+                db.query(Resume)
+                .filter(Resume.id == resume_id)
+                .first()
+            )
+
+            if resume is None:
+                return False
+
+            analysis = (
+                db.query(Analysis)
+                .filter(Analysis.resume_id == resume_id)
+                .first()
+            )
+
+            if analysis:
+                db.delete(analysis)
+
+            db.delete(resume)
+
+            db.commit()
+
+            return True
 
         finally:
             db.close()
