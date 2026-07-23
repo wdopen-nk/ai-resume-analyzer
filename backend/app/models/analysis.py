@@ -15,6 +15,7 @@ class Analysis(Base):
 
     resume_score: Mapped[int] = mapped_column(Integer)
     ats_score: Mapped[int] = mapped_column(Integer)
+    skills_score: Mapped[int] = mapped_column(Integer)
 
     strengths: Mapped[str] = mapped_column(Text)
     weaknesses: Mapped[str] = mapped_column(Text)
