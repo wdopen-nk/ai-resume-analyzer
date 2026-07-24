@@ -41,4 +41,4 @@ def render_analysis(analysis):
 
         for item in analysis.get("recommendations", []):
 
-            st.info(f"• {item}")
+            st.info(f"{item}")
