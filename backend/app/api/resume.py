@@ -75,3 +75,19 @@ def get_resume_analysis(resume_id: int):
         )
 
     return analysis
+
+
+@router.delete("/{resume_id}")
+def delete_resume(resume_id: int):
+
+    deleted = DatabaseService.delete_resume(resume_id)
+
+    if not deleted:
+        raise HTTPException(
+            status_code=404,
+            detail="Resume not found."
+        )
+
+    return {
+        "message": "Resume deleted successfully."
+    }
