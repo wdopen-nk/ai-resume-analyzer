@@ -161,3 +161,14 @@ class DatabaseService:
 
         finally:
             db.close()
+
+    @staticmethod
+    def get_resume(resume_id: int):
+        db = SessionLocal()
+
+        try:
+            return db.query(Resume).filter(
+                Resume.id == resume_id
+            ).first()
+        finally:
+            db.close()

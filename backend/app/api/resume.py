@@ -6,6 +6,8 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from app.services.parser_service import ResumeParser
 from app.services.ai_service import AIService
 from app.services.database_service import DatabaseService
+from app.schemas.job_match import JobMatchRequest
+from app.services.job_match_service import JobMatchService
 
 router = APIRouter(prefix="/resume", tags=["Resume"])
 
@@ -51,6 +53,14 @@ async def upload_resume(file: UploadFile = File(...)):
             detail="An unexpected error occurred while analyzing the resume.",
         )
 
+    # except Exception as e:
+    #     print("ERROR DURING RESUME ANALYSIS:")
+    #     print(repr(e))
+    #     raise HTTPException(
+    #         status_code=500,
+    #         detail=str(e)
+    #     )
+    
     return {
         "id": resume_id,
         "filename": file.filename,
@@ -91,3 +101,20 @@ def delete_resume(resume_id: int):
     return {
         "message": "Resume deleted successfully."
     }
+
+@router.post("/match")
+def match_resume(request: JobMatchRequest):
+    resume = DatabaseService.get_resume(request.resume_id)
+
+    if not resume:
+        raise HTTPException(
+            status_code=404,
+            detail="Resume not found"
+        )
+
+    result = JobMatchService.match_resume(
+        resume.content,
+        request.job_description
+    )
+
+    return result

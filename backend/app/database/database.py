@@ -1,19 +1,27 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.orm import sessionmaker, declarative_base
+from pathlib import Path
 
-from app.config import settings
+
+BASE_DIR = Path(__file__).resolve().parents[2]
+
+DATA_DIR = BASE_DIR / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+DATABASE_PATH = DATA_DIR / "resume_analyzer.db"
+
+DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
+
 
 engine = create_engine(
-    settings.DATABASE_URL,
+    DATABASE_URL,
     connect_args={"check_same_thread": False}
 )
 
 SessionLocal = sessionmaker(
-    autoflush=False,
     autocommit=False,
+    autoflush=False,
     bind=engine
 )
 
-
-class Base(DeclarativeBase):
-    pass
+Base = declarative_base()
