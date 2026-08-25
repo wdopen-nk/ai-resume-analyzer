@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.database.database import SessionLocal
 from app.models.analysis import Analysis
 from app.models.resume import Resume
+from app.models.job_match import JobMatch
 
 
 class DatabaseService:
@@ -46,6 +47,7 @@ class DatabaseService:
 
         finally:
             db.close()
+
 
     @staticmethod
     def get_history():
@@ -162,6 +164,7 @@ class DatabaseService:
         finally:
             db.close()
 
+
     @staticmethod
     def get_resume(resume_id: int):
         db = SessionLocal()
@@ -170,5 +173,111 @@ class DatabaseService:
             return db.query(Resume).filter(
                 Resume.id == resume_id
             ).first()
+        finally:
+            db.close()
+
+
+    @staticmethod
+    def save_job_match(
+        resume_id: int,
+        job_title: str,
+        job_description: str,
+        result: dict
+    ) -> int:
+
+        db = SessionLocal()
+
+        try:
+
+            job_match = JobMatch(
+                resume_id=resume_id,
+                job_title=job_title,
+                job_description=job_description,
+
+                match_score=result["match_score"],
+                skills_match=result["skills_match"],
+                experience_match=result["experience_match"],
+                keyword_match=result["keyword_match"],
+
+                matching_skills=json.dumps(
+                    result["matching_skills"]
+                ),
+                missing_skills=json.dumps(
+                    result["missing_skills"]
+                ),
+
+                matching_keywords=json.dumps(
+                    result["matching_keywords"]
+                ),
+                missing_keywords=json.dumps(
+                    result["missing_keywords"]
+                ),
+
+                recommendations=json.dumps(
+                    result["recommendations"]
+                )
+            )
+
+            db.add(job_match)
+            db.commit()
+            db.refresh(job_match)
+
+            return job_match.id
+
+        finally:
+            db.close()
+
+
+    @staticmethod
+    def get_job_matches(resume_id: int):
+
+        db = SessionLocal()
+
+        try:
+
+            matches = (
+                db.query(JobMatch)
+                .filter(JobMatch.resume_id == resume_id)
+                .order_by(JobMatch.created_at.desc())
+                .all()
+            )
+
+            return [
+                {
+                    "id": match.id,
+                    "resume_id": match.resume_id,
+                    "job_title": match.job_title,
+                    "job_description": match.job_description,
+
+                    "match_score": match.match_score,
+                    "skills_match": match.skills_match,
+                    "experience_match": match.experience_match,
+                    "keyword_match": match.keyword_match,
+
+                    "matching_skills": json.loads(
+                        match.matching_skills
+                    ),
+
+                    "missing_skills": json.loads(
+                        match.missing_skills
+                    ),
+
+                    "matching_keywords": json.loads(
+                        match.matching_keywords
+                    ),
+
+                    "missing_keywords": json.loads(
+                        match.missing_keywords
+                    ),
+
+                    "recommendations": json.loads(
+                        match.recommendations
+                    ),
+
+                    "created_at": match.created_at,
+                }
+                for match in matches
+            ]
+
         finally:
             db.close()
