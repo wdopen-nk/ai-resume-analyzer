@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import DateTime, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.database import Base
 
@@ -16,3 +16,9 @@ class Resume(Base):
         DateTime,
         default=datetime.utcnow
     )
+
+    job_matches = relationship(
+        "JobMatch",
+        back_populates="resume",
+        cascade="all, delete-orphan"
+     )

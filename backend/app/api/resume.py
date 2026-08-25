@@ -6,7 +6,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from app.services.parser_service import ResumeParser
 from app.services.ai_service import AIService
 from app.services.database_service import DatabaseService
-from app.schemas.job_match import JobMatchRequest
+from app.schemas.job_match import JobMatchRequest, JobMatchResponse
 from app.services.job_match_service import JobMatchService
 
 router = APIRouter(prefix="/resume", tags=["Resume"])
@@ -102,19 +102,79 @@ def delete_resume(resume_id: int):
         "message": "Resume deleted successfully."
     }
 
-@router.post("/match")
+
+@router.post("/match", response_model=JobMatchResponse)
 def match_resume(request: JobMatchRequest):
-    resume = DatabaseService.get_resume(request.resume_id)
+
+    resume = DatabaseService.get_resume(
+        request.resume_id
+    )
 
     if not resume:
         raise HTTPException(
             status_code=404,
-            detail="Resume not found"
+            detail="Resume not found."
         )
 
-    result = JobMatchService.match_resume(
-        resume.content,
-        request.job_description
+    try:
+
+        result = JobMatchService.match_resume(
+            resume.content,
+            request.job_description
+        )
+
+        print("JOB MATCH RESULT:")
+        print(result)
+
+        job_match_id = DatabaseService.save_job_match(
+            resume_id=request.resume_id,
+            job_title=request.job_title,
+            job_description=request.job_description,
+            result=result
+        )
+
+        return {
+            "id": job_match_id,
+            "resume_id": request.resume_id,
+            "job_title": request.job_title,
+            "job_description": request.job_description,
+            **result
+        }
+
+    except ValueError as e:
+
+        print("JOB MATCH VALUE ERROR:")
+        print(repr(e))
+
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+
+    except Exception as e:
+
+        print("JOB MATCH ERROR:")
+        print(repr(e))
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+
+@router.get("/{resume_id}/matches")
+def get_job_matches(resume_id: int):
+
+    resume = DatabaseService.get_resume(
+        resume_id
     )
 
-    return result
+    if not resume:
+        raise HTTPException(
+            status_code=404,
+            detail="Resume not found."
+        )
+
+    return DatabaseService.get_job_matches(
+        resume_id
+    )
