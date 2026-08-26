@@ -6,6 +6,7 @@ from app.database.database import SessionLocal
 from app.models.analysis import Analysis
 from app.models.resume import Resume
 from app.models.job_match import JobMatch
+from app.models.user import User
 
 
 class DatabaseService:
@@ -278,6 +279,47 @@ class DatabaseService:
                 }
                 for match in matches
             ]
+
+        finally:
+            db.close()
+
+
+    @staticmethod
+    def get_user_by_email(email: str):
+
+        db = SessionLocal()
+
+        try:
+            return (
+                db.query(User)
+                .filter(User.email == email)
+                .first()
+            )
+
+        finally:
+            db.close()
+
+
+    @staticmethod
+    def create_user(
+        email: str,
+        password_hash: str
+    ) -> User:
+
+        db = SessionLocal()
+
+        try:
+
+            user = User(
+                email = email,
+                password_hash = password_hash
+            )
+
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+
+            return user
 
         finally:
             db.close()
