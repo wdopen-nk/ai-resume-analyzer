@@ -35,7 +35,7 @@ if uploaded_file is not None:
     st.success(f"Selected file: **{uploaded_file.name}**")
 
     if st.button(
-        "🚀 Analyze Resume",
+        "Analyze Resume",
         use_container_width=True
     ):
 
@@ -74,7 +74,7 @@ if uploaded_file is not None:
 
             analysis = result["analysis"]
 
-        st.success("✅ Analysis Completed")
+        st.success("Analysis Completed")
 
         render_scores(
             analysis.get("resume_score", 0),
