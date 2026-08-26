@@ -143,7 +143,7 @@ if not history:
 
     st.info(
         """
-        ### No analyzed resumes yet
+        No analyzed resumes yet.
 
         Upload and analyze a resume from the **Home** page
         before using the Job Matcher.

@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 from app.api.resume import router as resume_router
+from app.api.auth import router as auth_router
 from app.config import settings
 from app.database.init_db import init_db
 from app.logger import logger
@@ -14,6 +15,7 @@ init_db()
 
 logger.info("Database initialized.")
 
+app.include_router(auth_router)
 app.include_router(resume_router)
 
 
