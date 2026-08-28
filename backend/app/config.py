@@ -24,5 +24,22 @@ class Settings:
         "qwen2.5:7b"
     )
 
+    JWT_SECRET_KEY = os.getenv(
+        "JWT_SECRET_KEY",
+        "your-super-secret-key-change-this"
+    )
+
+    JWT_ALGORITHM = os.getenv(
+        "JWT_ALGORITHM",
+        "HS256"
+    )
+
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(
+        os.getenv(
+            "JWT_ACCESS_TOKEN_EXPIRE_MINUTES",
+            "60"
+        )
+    )
+
 
 settings = Settings()

@@ -1,5 +1,5 @@
 from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError
+from argon2.exceptions import VerifyMismatchError, InvalidHashError
 
 
 class AuthService:
@@ -24,5 +24,5 @@ class AuthService:
                 password
             )
 
-        except VerifyMismatchError:
+        except (VerifyMismatchError, InvalidHashError):
             return False
