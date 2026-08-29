@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 
 from app.database.database import SessionLocal
 from app.models.analysis import Analysis
-from app.models.resume import Resume
 from app.models.job_match import JobMatch
+from app.models.resume import Resume
 from app.models.user import User
 
 
@@ -15,50 +15,76 @@ class DatabaseService:
     def save_analysis(
         filename: str,
         resume_text: str,
-        analysis: dict
+        analysis: dict,
+        user_id: int
     ) -> int:
 
         db: Session = SessionLocal()
 
         try:
+
             resume = Resume(
                 filename=filename,
-                content=resume_text
+                content=resume_text,
+                user_id=user_id
             )
 
             db.add(resume)
-            db.commit()
-            db.refresh(resume)
+
+            # Generate resume.id without committing
+            db.flush()
 
             analysis_model = Analysis(
                 resume_id=resume.id,
                 resume_score=analysis["resume_score"],
                 ats_score=analysis["ats_score"],
                 skills_score=analysis["skills_score"],
-                strengths=json.dumps(analysis["strengths"]),
-                weaknesses=json.dumps(analysis["weaknesses"]),
-                missing_skills=json.dumps(analysis["missing_skills"]),
-                recommendations=json.dumps(analysis["recommendations"]),
+                strengths=json.dumps(
+                    analysis["strengths"]
+                ),
+                weaknesses=json.dumps(
+                    analysis["weaknesses"]
+                ),
+                missing_skills=json.dumps(
+                    analysis["missing_skills"]
+                ),
+                recommendations=json.dumps(
+                    analysis["recommendations"]
+                ),
             )
 
             db.add(analysis_model)
+
+            # Commit Resume + Analysis together
             db.commit()
 
             return resume.id
 
+        except Exception:
+
+            db.rollback()
+            raise
+
         finally:
+
             db.close()
 
 
     @staticmethod
-    def get_history():
+    def get_history(user_id: int):
 
-        db = SessionLocal()
+        db: Session = SessionLocal()
 
         try:
+
             resumes = (
                 db.query(Resume)
-                .order_by(Resume.uploaded_at.desc())
+                .filter(
+                    Resume.user_id == user_id
+                )
+                .order_by(
+                    Resume.uploaded_at.desc()
+                )
                 .all()
             )
 
@@ -68,9 +94,14 @@ class DatabaseService:
 
                 analysis = (
                     db.query(Analysis)
-                    .filter(Analysis.resume_id == resume.id)
+                    .filter(
+                        Analysis.resume_id == resume.id
+                    )
                     .first()
                 )
+
+                if analysis is None:
+                    continue
 
                 history.append({
                     "id": resume.id,
@@ -84,19 +115,27 @@ class DatabaseService:
             return history
 
         finally:
+
             db.close()
 
-    
-    @staticmethod
-    def get_analysis(resume_id: int):
 
-        db = SessionLocal()
+    @staticmethod
+    def get_analysis(
+        resume_id: int,
+        user_id: int
+    ):
+
+        db: Session = SessionLocal()
 
         try:
 
+            # Verify that the resume belongs to the user
             resume = (
                 db.query(Resume)
-                .filter(Resume.id == resume_id)
+                .filter(
+                    Resume.id == resume_id,
+                    Resume.user_id == user_id
+                )
                 .first()
             )
 
@@ -105,7 +144,9 @@ class DatabaseService:
 
             analysis = (
                 db.query(Analysis)
-                .filter(Analysis.resume_id == resume.id)
+                .filter(
+                    Analysis.resume_id == resume.id
+                )
                 .first()
             )
 
@@ -121,60 +162,104 @@ class DatabaseService:
                 "ats_score": analysis.ats_score,
                 "skills_score": analysis.skills_score,
 
-                "strengths": json.loads(analysis.strengths),
-                "weaknesses": json.loads(analysis.weaknesses),
-                "missing_skills": json.loads(analysis.missing_skills),
-                "recommendations": json.loads(analysis.recommendations),
+                "strengths": json.loads(
+                    analysis.strengths
+                ),
+
+                "weaknesses": json.loads(
+                    analysis.weaknesses
+                ),
+
+                "missing_skills": json.loads(
+                    analysis.missing_skills
+                ),
+
+                "recommendations": json.loads(
+                    analysis.recommendations
+                ),
             }
 
         finally:
+
             db.close()
 
 
     @staticmethod
-    def delete_resume(resume_id: int) -> bool:
+    def delete_resume(
+        resume_id: int,
+        user_id: int
+    ) -> bool:
 
-        db = SessionLocal()
+        db: Session = SessionLocal()
 
         try:
 
+            # Only find the resume if it belongs
+            # to the authenticated user.
             resume = (
                 db.query(Resume)
-                .filter(Resume.id == resume_id)
+                .filter(
+                    Resume.id == resume_id,
+                    Resume.user_id == user_id
+                )
                 .first()
             )
 
             if resume is None:
                 return False
 
+            # Delete the analysis associated
+            # with the resume.
             analysis = (
                 db.query(Analysis)
-                .filter(Analysis.resume_id == resume_id)
+                .filter(
+                    Analysis.resume_id == resume_id
+                )
                 .first()
             )
 
             if analysis:
                 db.delete(analysis)
 
+            # Job matches are configured with
+            # ON DELETE CASCADE.
             db.delete(resume)
 
             db.commit()
 
             return True
 
+        except Exception:
+
+            db.rollback()
+            raise
+
         finally:
+
             db.close()
 
 
     @staticmethod
-    def get_resume(resume_id: int):
-        db = SessionLocal()
+    def get_resume(
+        resume_id: int,
+        user_id: int
+    ):
+
+        db: Session = SessionLocal()
 
         try:
-            return db.query(Resume).filter(
-                Resume.id == resume_id
-            ).first()
+
+            return (
+                db.query(Resume)
+                .filter(
+                    Resume.id == resume_id,
+                    Resume.user_id == user_id
+                )
+                .first()
+            )
+
         finally:
+
             db.close()
 
 
@@ -186,12 +271,13 @@ class DatabaseService:
         result: dict
     ) -> int:
 
-        db = SessionLocal()
+        db: Session = SessionLocal()
 
         try:
 
             job_match = JobMatch(
                 resume_id=resume_id,
+
                 job_title=job_title,
                 job_description=job_description,
 
@@ -203,6 +289,7 @@ class DatabaseService:
                 matching_skills=json.dumps(
                     result["matching_skills"]
                 ),
+
                 missing_skills=json.dumps(
                     result["missing_skills"]
                 ),
@@ -210,6 +297,7 @@ class DatabaseService:
                 matching_keywords=json.dumps(
                     result["matching_keywords"]
                 ),
+
                 missing_keywords=json.dumps(
                     result["missing_keywords"]
                 ),
@@ -220,26 +308,45 @@ class DatabaseService:
             )
 
             db.add(job_match)
+
             db.commit()
             db.refresh(job_match)
 
             return job_match.id
 
+        except Exception:
+
+            db.rollback()
+            raise
+
         finally:
+
             db.close()
 
 
     @staticmethod
-    def get_job_matches(resume_id: int):
+    def get_job_matches(
+        resume_id: int,
+        user_id: int
+    ):
 
-        db = SessionLocal()
+        db: Session = SessionLocal()
 
         try:
 
             matches = (
                 db.query(JobMatch)
-                .filter(JobMatch.resume_id == resume_id)
-                .order_by(JobMatch.created_at.desc())
+                .join(
+                    Resume,
+                    JobMatch.resume_id == Resume.id
+                )
+                .filter(
+                    JobMatch.resume_id == resume_id,
+                    Resume.user_id == user_id
+                )
+                .order_by(
+                    JobMatch.created_at.desc()
+                )
                 .all()
             )
 
@@ -247,6 +354,7 @@ class DatabaseService:
                 {
                     "id": match.id,
                     "resume_id": match.resume_id,
+
                     "job_title": match.job_title,
                     "job_description": match.job_description,
 
@@ -277,26 +385,34 @@ class DatabaseService:
 
                     "created_at": match.created_at,
                 }
+
                 for match in matches
             ]
 
         finally:
+
             db.close()
 
 
     @staticmethod
-    def get_user_by_email(email: str):
+    def get_user_by_email(
+        email: str
+    ):
 
-        db = SessionLocal()
+        db: Session = SessionLocal()
 
         try:
+
             return (
                 db.query(User)
-                .filter(User.email == email)
+                .filter(
+                    User.email == email
+                )
                 .first()
             )
 
         finally:
+
             db.close()
 
 
@@ -306,20 +422,49 @@ class DatabaseService:
         password_hash: str
     ) -> User:
 
-        db = SessionLocal()
+        db: Session = SessionLocal()
 
         try:
 
             user = User(
-                email = email,
-                password_hash = password_hash
+                email=email,
+                password_hash=password_hash
             )
 
             db.add(user)
+
             db.commit()
             db.refresh(user)
 
             return user
 
+        except Exception:
+
+            db.rollback()
+            raise
+
         finally:
+
+            db.close()
+
+
+    @staticmethod
+    def get_user_by_id(
+        user_id: int
+    ):
+
+        db: Session = SessionLocal()
+
+        try:
+
+            return (
+                db.query(User)
+                .filter(
+                    User.id == user_id
+                )
+                .first()
+            )
+
+        finally:
+
             db.close()

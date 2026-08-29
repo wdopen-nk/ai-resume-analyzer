@@ -1,5 +1,5 @@
 from sqlalchemy import ForeignKey, Integer, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.database import Base
 
@@ -7,10 +7,19 @@ from app.database.database import Base
 class Analysis(Base):
     __tablename__ = "analyses"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True
+    )
 
     resume_id: Mapped[int] = mapped_column(
-        ForeignKey("resumes.id")
+        ForeignKey(
+            "resumes.id",
+            ondelete="CASCADE"
+        ),
+        nullable=False,
+        unique=True,
+        index=True
     )
 
     resume_score: Mapped[int] = mapped_column(Integer)
@@ -21,3 +30,8 @@ class Analysis(Base):
     weaknesses: Mapped[str] = mapped_column(Text)
     missing_skills: Mapped[str] = mapped_column(Text)
     recommendations: Mapped[str] = mapped_column(Text)
+
+    resume = relationship(
+        "Resume",
+        back_populates="analysis"
+    )

@@ -38,6 +38,13 @@ class Resume(Base):
         back_populates="resumes"
     )
 
+    analysis = relationship(
+        "Analysis",
+        back_populates="resume",
+        cascade="all, delete-orphan",
+        uselist=False
+    )
+
     job_matches = relationship(
         "JobMatch",
         back_populates="resume",

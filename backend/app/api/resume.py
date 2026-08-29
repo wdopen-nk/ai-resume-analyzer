@@ -1,7 +1,15 @@
 import shutil
+import uuid
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import (
+    APIRouter,
+    UploadFile,
+    File,
+    HTTPException,
+    Depends
+)
 
 from app.services.parser_service import ResumeParser
 from app.services.ai_service import AIService
@@ -9,14 +17,34 @@ from app.services.database_service import DatabaseService
 from app.schemas.job_match import JobMatchRequest, JobMatchResponse
 from app.services.job_match_service import JobMatchService
 
-router = APIRouter(prefix="/resume", tags=["Resume"])
+from app.api.dependencies import get_current_user
+from app.models.user import User
+
+
+router = APIRouter(
+    prefix="/resume",
+    tags=["Resume"]
+)
+
 
 UPLOAD_FOLDER = Path("app/uploads")
-UPLOAD_FOLDER.mkdir(exist_ok=True)
+UPLOAD_FOLDER.mkdir(
+    parents=True,
+    exist_ok=True
+)
+
+
+CurrentUser = Annotated[
+    User,
+    Depends(get_current_user)
+]
 
 
 @router.post("/upload")
-async def upload_resume(file: UploadFile = File(...)):
+async def upload_resume(
+    current_user: CurrentUser,
+    file: UploadFile = File(...)
+):
     extension = Path(file.filename).suffix.lower()
 
     if extension not in [".pdf", ".docx"]:
@@ -25,58 +53,97 @@ async def upload_resume(file: UploadFile = File(...)):
             detail="Only PDF and DOCX files are supported."
         )
 
-    file_path = UPLOAD_FOLDER / file.filename
+    # Generate a unique temporary filename.
+    # The original filename is still stored in the database.
+    temporary_filename = (
+        f"{uuid.uuid4()}{extension}"
+    )
 
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    file_path = UPLOAD_FOLDER / temporary_filename
 
     try:
-        resume_text = ResumeParser.extract_text(str(file_path))
+        # Save uploaded file temporarily
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(
+                file.file,
+                buffer
+            )
 
-        analysis = AIService.analyze_resume(resume_text)
+        # Release the uploaded file handle.
+        # This is especially important on Windows.
+        await file.close()
 
+        # Extract text
+        resume_text = ResumeParser.extract_text(
+            str(file_path)
+        )
+
+        # Analyze resume
+        analysis = AIService.analyze_resume(
+            resume_text
+        )
+
+        # Save resume and analysis
+        # associated with the authenticated user.
         resume_id = DatabaseService.save_analysis(
             filename=file.filename,
             resume_text=resume_text,
-            analysis=analysis
+            analysis=analysis,
+            user_id=current_user.id
         )
+
+        return {
+            "id": resume_id,
+            "filename": file.filename,
+            "analysis": analysis
+        }
 
     except ValueError as e:
         raise HTTPException(
             status_code=400,
-            detail=str(e),
+            detail=str(e)
         )
+
+    except HTTPException:
+        raise
 
     except Exception:
         raise HTTPException(
             status_code=500,
-            detail="An unexpected error occurred while analyzing the resume.",
+            detail="An unexpected error occurred while analyzing the resume."
         )
 
-    # except Exception as e:
-    #     print("ERROR DURING RESUME ANALYSIS:")
-    #     print(repr(e))
-    #     raise HTTPException(
-    #         status_code=500,
-    #         detail=str(e)
-    #     )
-    
-    return {
-        "id": resume_id,
-        "filename": file.filename,
-        "analysis": analysis
-    }
+    finally:
+        # Always remove the temporary file.
+        if file_path.exists():
+            try:
+                file_path.unlink()
+            except PermissionError:
+                # Avoid masking the original error if Windows
+                # still has the file temporarily locked.
+                pass
 
 
 @router.get("/history")
-def get_history():
-    return DatabaseService.get_history()
+def get_history(
+    current_user: CurrentUser
+):
+
+    return DatabaseService.get_history(
+        current_user.id
+    )
 
 
 @router.get("/{resume_id}")
-def get_resume_analysis(resume_id: int):
+def get_resume_analysis(
+    resume_id: int,
+    current_user: CurrentUser
+):
 
-    analysis = DatabaseService.get_analysis(resume_id)
+    analysis = DatabaseService.get_analysis(
+        resume_id,
+        current_user.id
+    )
 
     if analysis is None:
         raise HTTPException(
@@ -88,9 +155,15 @@ def get_resume_analysis(resume_id: int):
 
 
 @router.delete("/{resume_id}")
-def delete_resume(resume_id: int):
+def delete_resume(
+    resume_id: int,
+    current_user: CurrentUser
+):
 
-    deleted = DatabaseService.delete_resume(resume_id)
+    deleted = DatabaseService.delete_resume(
+        resume_id,
+        current_user.id
+    )
 
     if not deleted:
         raise HTTPException(
@@ -103,11 +176,18 @@ def delete_resume(resume_id: int):
     }
 
 
-@router.post("/match", response_model=JobMatchResponse)
-def match_resume(request: JobMatchRequest):
+@router.post(
+    "/match",
+    response_model=JobMatchResponse
+)
+def match_resume(
+    request: JobMatchRequest,
+    current_user: CurrentUser
+):
 
     resume = DatabaseService.get_resume(
-        request.resume_id
+        request.resume_id,
+        current_user.id
     )
 
     if not resume:
@@ -123,14 +203,12 @@ def match_resume(request: JobMatchRequest):
             request.job_description
         )
 
-        print("JOB MATCH RESULT:")
-        print(result)
-
         job_match_id = DatabaseService.save_job_match(
             resume_id=request.resume_id,
             job_title=request.job_title,
             job_description=request.job_description,
-            result=result
+            result=result,
+            user_id=current_user.id
         )
 
         return {
@@ -143,30 +221,28 @@ def match_resume(request: JobMatchRequest):
 
     except ValueError as e:
 
-        print("JOB MATCH VALUE ERROR:")
-        print(repr(e))
-
         raise HTTPException(
             status_code=400,
             detail=str(e)
         )
 
-    except Exception as e:
-
-        print("JOB MATCH ERROR:")
-        print(repr(e))
+    except Exception:
 
         raise HTTPException(
             status_code=500,
-            detail=str(e)
+            detail="An unexpected error occurred while matching the resume."
         )
 
 
 @router.get("/{resume_id}/matches")
-def get_job_matches(resume_id: int):
+def get_job_matches(
+    resume_id: int,
+    current_user: CurrentUser
+):
 
     resume = DatabaseService.get_resume(
-        resume_id
+        resume_id,
+        current_user.id
     )
 
     if not resume:
@@ -176,5 +252,6 @@ def get_job_matches(resume_id: int):
         )
 
     return DatabaseService.get_job_matches(
-        resume_id
+        resume_id,
+        current_user.id
     )
