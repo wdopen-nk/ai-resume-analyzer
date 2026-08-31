@@ -3,244 +3,182 @@ import os
 import requests
 import streamlit as st
 
+from components.auth import (
+    get_auth_headers,
+    require_auth
+)
 from components.sidebar import render_sidebar
 
-
-# ============================================================
-# Configuration
-# ============================================================
 
 BACKEND_URL = os.getenv(
     "BACKEND_URL",
     "http://backend:8000"
 )
 
-HISTORY_API_URL = f"{BACKEND_URL}/resume/history"
-MATCH_API_URL = f"{BACKEND_URL}/resume/match"
+API_URL = f"{BACKEND_URL}/resume"
 
 
 st.set_page_config(
     page_title="Job Matcher",
-    page_icon="🎯",
     layout="wide"
 )
 
 
-# ============================================================
-# Sidebar
-# ============================================================
+# Require authentication before accessing the page
+require_auth()
 
+# Render sidebar
 render_sidebar()
 
-
-# ============================================================
-# Helper Functions
-# ============================================================
-
-def get_match_label(score):
-    """Return a human-readable label for a match score."""
-
-    if score >= 80:
-        return "Excellent Match"
-
-    if score >= 60:
-        return "Good Match"
-
-    if score >= 40:
-        return "Moderate Match"
-
-    return "Weak Match"
-
-
-def render_list(items, empty_message):
-    """Render a list using native Streamlit components."""
-
-    if not items:
-        st.caption(empty_message)
-        return
-
-    for item in items:
-        st.markdown(f"- {item}")
-
-
-# ============================================================
-# Page Header
-# ============================================================
 
 st.title("Job Matcher")
 
 st.caption(
-    "Compare your resume against a specific job description "
-    "and identify your strengths, gaps, and improvement areas."
+    "Compare your resume with a job description and discover how well you match."
 )
 
 st.divider()
 
 
-# ============================================================
-# Load Resume History
-# ============================================================
+# --------------------------------------------------
+# LOAD USER'S RESUME HISTORY
+# --------------------------------------------------
 
 try:
 
     response = requests.get(
-        HISTORY_API_URL,
-        timeout=10
+        f"{API_URL}/history",
+        headers=get_auth_headers()
     )
+
+    if response.status_code == 401:
+
+        st.error(
+            "Your session has expired. Please log in again."
+        )
+
+        st.session_state.clear()
+
+        st.switch_page(
+            "pages/Login.py"
+        )
+
+    if response.status_code != 200:
+
+        st.error(
+            "Unable to load your resumes."
+        )
+
+        st.stop()
+
+    resumes = response.json()
+
 
 except requests.exceptions.ConnectionError:
 
     st.error(
-        "Cannot connect to the FastAPI backend."
-    )
-
-    st.stop()
-
-except requests.exceptions.Timeout:
-
-    st.error(
-        "The request to the backend timed out."
-    )
-
-    st.stop()
-
-except requests.exceptions.RequestException:
-
-    st.error(
-        "An error occurred while loading your resumes."
+        "Cannot connect to FastAPI backend."
     )
 
     st.stop()
 
 
-if response.status_code != 200:
+# --------------------------------------------------
+# EMPTY STATE
+# --------------------------------------------------
 
-    st.error(
-        "Unable to load your analyzed resumes."
-    )
-
-    st.stop()
-
-
-try:
-
-    history = response.json()
-
-except ValueError:
-
-    st.error(
-        "The backend returned an invalid response."
-    )
-
-    st.stop()
-
-
-# ============================================================
-# No Resume Available
-# ============================================================
-
-if not history:
+if not resumes:
 
     st.info(
         """
-        No analyzed resumes yet.
+You haven't analyzed any resumes yet.
 
-        Upload and analyze a resume from the **Home** page
-        before using the Job Matcher.
-        """
+Upload and analyze a resume first before using the Job Matcher.
+"""
     )
+
+    if st.button(
+        "Go to Resume Analyzer",
+        use_container_width=True
+    ):
+        st.switch_page("Home.py")
 
     st.stop()
 
 
-# ============================================================
-# Resume Selection
-# ============================================================
+# --------------------------------------------------
+# RESUME SELECTION
+# --------------------------------------------------
 
-st.subheader("1. Select Your Resume")
-
-resume_options = {}
-
-for item in history:
-
-    label = (
-        f'{item["filename"]} '
-        f'• Score: {item["resume_score"]}/100'
-    )
-
-    resume_options[label] = item["id"]
+st.subheader("1. Select Resume")
 
 
-selected_resume_label = st.selectbox(
-    "Resume",
-    options=list(resume_options.keys()),
-    label_visibility="collapsed"
+resume_options = {
+    f'{resume["filename"]} - Score: {resume["resume_score"]}/100':
+    resume["id"]
+    for resume in resumes
+}
+
+
+selected_resume_name = st.selectbox(
+    "Choose a resume",
+    options=list(resume_options.keys())
 )
 
+
 selected_resume_id = resume_options[
-    selected_resume_label
+    selected_resume_name
 ]
 
 
-# ============================================================
-# Job Information
-# ============================================================
+st.divider()
 
-st.subheader("2. Enter Job Information")
+
+# --------------------------------------------------
+# JOB DESCRIPTION INPUT
+# --------------------------------------------------
+
+st.subheader("2. Add Job Description")
+
 
 job_title = st.text_input(
     "Job Title",
-    placeholder="e.g. Backend Developer"
+    placeholder="e.g. Junior Python Developer"
 )
+
 
 job_description = st.text_area(
     "Job Description",
     placeholder=(
         "Paste the complete job description here..."
     ),
-    height=260
-)
-
-st.caption(
-    "For the best results, include the complete job description, "
-    "especially required skills, technologies, responsibilities, "
-    "and qualifications."
+    height=300
 )
 
 
-# ============================================================
-# Analyze Button
-# ============================================================
+# --------------------------------------------------
+# MATCH BUTTON
+# --------------------------------------------------
 
-st.write("")
-
-analyze_button = st.button(
+if st.button(
     "Analyze Job Match",
     type="primary",
     use_container_width=True
-)
-
-
-# ============================================================
-# Run Job Match
-# ============================================================
-
-if analyze_button:
+):
 
     if not job_title.strip():
 
-        st.warning(
+        st.error(
             "Please enter a job title."
         )
 
         st.stop()
 
 
-    if len(job_description.strip()) < 20:
+    if not job_description.strip():
 
-        st.warning(
-            "Please enter a job description "
-            "containing at least 20 characters."
+        st.error(
+            "Please enter a job description."
         )
 
         st.stop()
@@ -248,49 +186,53 @@ if analyze_button:
 
     payload = {
         "resume_id": selected_resume_id,
-        "job_title": job_title.strip(),
-        "job_description": job_description.strip()
+        "job_title": job_title,
+        "job_description": job_description
     }
 
 
     with st.spinner(
-        "AI is comparing your resume with the job..."
+        "AI is comparing your resume with the job description..."
     ):
 
         try:
 
             response = requests.post(
-                MATCH_API_URL,
+                f"{API_URL}/match",
                 json=payload,
-                timeout=180
+                headers=get_auth_headers()
             )
+
 
         except requests.exceptions.ConnectionError:
 
             st.error(
-                "Cannot connect to the FastAPI backend."
+                "Cannot connect to FastAPI backend."
             )
 
             st.stop()
 
-        except requests.exceptions.Timeout:
 
-            st.error(
-                "The AI analysis took too long. "
-                "Please try again."
-            )
+    # ----------------------------------------------
+    # HANDLE AUTHENTICATION ERROR
+    # ----------------------------------------------
 
-            st.stop()
+    if response.status_code == 401:
 
-        except requests.exceptions.RequestException:
+        st.error(
+            "Your session has expired. Please log in again."
+        )
 
-            st.error(
-                "An error occurred while contacting "
-                "the backend."
-            )
+        st.session_state.clear()
 
-            st.stop()
+        st.switch_page(
+            "pages/Login.py"
+        )
 
+
+    # ----------------------------------------------
+    # HANDLE OTHER ERRORS
+    # ----------------------------------------------
 
     if response.status_code != 200:
 
@@ -298,377 +240,336 @@ if analyze_button:
 
             detail = response.json().get(
                 "detail",
-                "Unable to analyze the job match."
+                "Unable to analyze job match."
             )
 
         except Exception:
 
-            detail = (
-                "Unable to analyze the job match."
-            )
+            detail = "Unable to analyze job match."
 
         st.error(detail)
 
         st.stop()
 
 
-    try:
+    # ----------------------------------------------
+    # STORE RESULT
+    # ----------------------------------------------
 
-        result = response.json()
+    result = response.json()
 
-    except ValueError:
-
-        st.error(
-            "The backend returned an invalid match result."
-        )
-
-        st.stop()
-
-
-    # Save result across Streamlit reruns.
     st.session_state["job_match_result"] = result
 
 
-# ============================================================
-# Retrieve Existing Result
-# ============================================================
+# --------------------------------------------------
+# DISPLAY CURRENT MATCH RESULT
+# --------------------------------------------------
 
-result = st.session_state.get(
-    "job_match_result"
-)
+if "job_match_result" in st.session_state:
 
-
-if result is None:
+    result = st.session_state["job_match_result"]
 
     st.divider()
 
-    st.info(
-        """
-        Enter a job title and job description above,
-        then click **Analyze Job Match** to see the results.
-        """
-    )
-
-    st.stop()
+    st.header("Match Results")
 
 
-# ============================================================
-# Results
-# ============================================================
+    # ----------------------------------------------
+    # SCORE CARDS
+    # ----------------------------------------------
 
-st.divider()
-
-job_title_result = result.get(
-    "job_title",
-    job_title
-)
-
-st.header(
-    f"Match Results"
-)
-
-st.caption(
-    job_title_result
-)
+    col1, col2, col3, col4 = st.columns(4)
 
 
-# ============================================================
-# Overall Match
-# ============================================================
-
-match_score = result.get(
-    "match_score",
-    0
-)
-
-match_label = get_match_label(
-    match_score
-)
-
-
-st.subheader("Overall Match")
-
-
-with st.container(border=True):
-
-    score_col, description_col = st.columns(
-        [1, 2]
-    )
-
-    with score_col:
+    with col1:
 
         st.metric(
-            "Match Score",
-            f"{match_score}/100"
+            "Overall Match",
+            f'{result["match_score"]}%'
         )
 
-    with description_col:
 
-        if match_score >= 80:
-
-            st.success(
-                f"### {match_label}\n"
-                "Your resume aligns very well with this position."
-            )
-
-        elif match_score >= 60:
-
-            st.info(
-                f"### {match_label}\n"
-                "Your resume has a solid alignment with this position."
-            )
-
-        elif match_score >= 40:
-
-            st.warning(
-                f"### {match_label}\n"
-                "There are several areas where your resume could be improved."
-            )
-
-        else:
-
-            st.error(
-                f"### {match_label}\n"
-                "Your resume currently has significant gaps for this position."
-            )
-
-    st.progress(
-        min(max(match_score, 0), 100) / 100
-    )
-
-
-# ============================================================
-# Score Breakdown
-# ============================================================
-
-st.subheader("Score Breakdown")
-
-
-skills_match = result.get(
-    "skills_match",
-    0
-)
-
-experience_match = result.get(
-    "experience_match",
-    0
-)
-
-keyword_match = result.get(
-    "keyword_match",
-    0
-)
-
-
-col1, col2, col3 = st.columns(3)
-
-
-with col1:
-
-    with st.container(border=True):
+    with col2:
 
         st.metric(
             "Skills Match",
-            f"{skills_match}%"
-        )
-
-        st.progress(
-            min(max(skills_match, 0), 100) / 100
+            f'{result["skills_match"]}%'
         )
 
 
-with col2:
-
-    with st.container(border=True):
+    with col3:
 
         st.metric(
             "Experience Match",
-            f"{experience_match}%"
-        )
-
-        st.progress(
-            min(max(experience_match, 0), 100) / 100
+            f'{result["experience_match"]}%'
         )
 
 
-with col3:
-
-    with st.container(border=True):
+    with col4:
 
         st.metric(
             "Keyword Match",
-            f"{keyword_match}%"
-        )
-
-        st.progress(
-            min(max(keyword_match, 0), 100) / 100
+            f'{result["keyword_match"]}%'
         )
 
 
-st.divider()
+    st.divider()
 
 
-# ============================================================
-# Skills Analysis
-# ============================================================
+    # ----------------------------------------------
+    # SKILLS
+    # ----------------------------------------------
 
-st.subheader("Skills Analysis")
-
-
-matching_skills = result.get(
-    "matching_skills",
-    []
-)
-
-missing_skills = result.get(
-    "missing_skills",
-    []
-)
+    left, right = st.columns(2)
 
 
-col1, col2 = st.columns(2)
+    with left:
 
+        st.subheader("Matching Skills")
 
-with col1:
-
-    with st.container(border=True):
-
-        st.markdown("### Matching Skills")
+        matching_skills = result.get(
+            "matching_skills",
+            []
+        )
 
         if matching_skills:
 
-            render_list(
-                matching_skills,
-                "No matching skills identified."
-            )
+            for skill in matching_skills:
+
+                st.success(
+                    f"✓ {skill}"
+                )
 
         else:
 
-            st.caption(
-                "No matching skills identified."
+            st.info(
+                "No matching skills detected."
             )
 
 
-with col2:
+    with right:
 
-    with st.container(border=True):
+        st.subheader("Missing Skills")
 
-        st.markdown("### Missing Skills")
+        missing_skills = result.get(
+            "missing_skills",
+            []
+        )
 
         if missing_skills:
 
-            render_list(
-                missing_skills,
-                "No important missing skills identified."
-            )
+            for skill in missing_skills:
+
+                st.warning(
+                    f"• {skill}"
+                )
 
         else:
 
-            st.caption(
-                "No important missing skills identified."
+            st.success(
+                "No significant missing skills detected."
             )
 
 
-st.write("")
+    st.divider()
 
 
-# ============================================================
-# Keyword Analysis
-# ============================================================
+    # ----------------------------------------------
+    # KEYWORDS
+    # ----------------------------------------------
 
-st.subheader("Keyword Analysis")
-
-
-matching_keywords = result.get(
-    "matching_keywords",
-    []
-)
-
-missing_keywords = result.get(
-    "missing_keywords",
-    []
-)
+    left, right = st.columns(2)
 
 
-col1, col2 = st.columns(2)
+    with left:
+
+        st.subheader("Matching Keywords")
+
+        matching_keywords = result.get(
+            "matching_keywords",
+            []
+        )
+
+        if matching_keywords:
+
+            for keyword in matching_keywords:
+
+                st.success(
+                    f"✓ {keyword}"
+                )
+
+        else:
+
+            st.info(
+                "No matching keywords detected."
+            )
 
 
-with col1:
+    with right:
 
-    with st.container(border=True):
+        st.subheader("Missing Keywords")
 
-        st.markdown("### Matching Keywords")
+        missing_keywords = result.get(
+            "missing_keywords",
+            []
+        )
 
-        render_list(
-            matching_keywords,
-            "No matching keywords identified."
+        if missing_keywords:
+
+            for keyword in missing_keywords:
+
+                st.warning(
+                    f"• {keyword}"
+                )
+
+        else:
+
+            st.success(
+                "No significant missing keywords detected."
+            )
+
+
+    st.divider()
+
+
+    # ----------------------------------------------
+    # RECOMMENDATIONS
+    # ----------------------------------------------
+
+    st.subheader("Recommendations")
+
+
+    recommendations = result.get(
+        "recommendations",
+        []
+    )
+
+
+    if recommendations:
+
+        for index, recommendation in enumerate(
+            recommendations,
+            start=1
+        ):
+
+            st.write(
+                f"{index}. {recommendation}"
+            )
+
+    else:
+
+        st.info(
+            "No additional recommendations."
         )
 
 
-with col2:
-
-    with st.container(border=True):
-
-        st.markdown("### Missing Keywords")
-
-        render_list(
-            missing_keywords,
-            "No important missing keywords identified."
-        )
-
+# --------------------------------------------------
+# PREVIOUS JOB MATCHES
+# --------------------------------------------------
 
 st.divider()
 
-
-# ============================================================
-# Recommendations
-# ============================================================
-
-st.subheader("Recommendations")
+st.subheader("Previous Job Matches")
 
 
-recommendations = result.get(
-    "recommendations",
-    []
-)
+try:
+
+    matches_response = requests.get(
+        f"{API_URL}/{selected_resume_id}/matches",
+        headers=get_auth_headers()
+    )
 
 
-if recommendations:
+    if matches_response.status_code == 401:
 
-    for index, recommendation in enumerate(
-        recommendations,
-        start=1
-    ):
+        st.session_state.clear()
 
-        with st.container(border=True):
+        st.switch_page(
+            "pages/Login.py"
+        )
 
-            st.markdown(
-                f"**{index}.** {recommendation}"
-            )
 
-        st.write("")
+    if matches_response.status_code == 200:
+
+        previous_matches = matches_response.json()
+
+    else:
+
+        previous_matches = []
+
+
+except requests.exceptions.ConnectionError:
+
+    previous_matches = []
+
+
+if previous_matches:
+
+    for match in previous_matches:
+
+        with st.expander(
+            f'{match["job_title"]} — '
+            f'{match["match_score"]}% Match'
+        ):
+
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                st.metric(
+                    "Overall",
+                    f'{match["match_score"]}%'
+                )
+
+            with col2:
+                st.metric(
+                    "Skills",
+                    f'{match["skills_match"]}%'
+                )
+
+            with col3:
+                st.metric(
+                    "Experience",
+                    f'{match["experience_match"]}%'
+                )
+
+            with col4:
+                st.metric(
+                    "Keywords",
+                    f'{match["keyword_match"]}%'
+                )
+
+
+            st.markdown("### Matching Skills")
+
+            for skill in match.get(
+                "matching_skills",
+                []
+            ):
+                st.success(f"✓ {skill}")
+
+
+            st.markdown("### Missing Skills")
+
+            for skill in match.get(
+                "missing_skills",
+                []
+            ):
+                st.warning(f"• {skill}")
+
+
+            st.markdown("### Recommendations")
+
+            for recommendation in match.get(
+                "recommendations",
+                []
+            ):
+                st.write(
+                    f"• {recommendation}"
+                )
+
 
 else:
 
-    st.info(
-        "No additional recommendations were generated."
+    st.caption(
+        "No previous job matches for this resume."
     )
-
-
-# ============================================================
-# Start New Match
-# ============================================================
-
-st.divider()
-
-if st.button(
-    "Start New Job Match",
-    use_container_width=True
-):
-
-    st.session_state.pop(
-        "job_match_result",
-        None
-    )
-
-    st.rerun()

@@ -50,5 +50,3 @@ def render_scores(
             st.caption(
                 _score_label(score)
             )
-
-    st.divider()

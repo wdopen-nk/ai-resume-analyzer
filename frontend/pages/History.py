@@ -1,11 +1,16 @@
+import os
+
 import requests
 import streamlit as st
 
+from components.auth import (
+    get_auth_headers,
+    require_auth
+)
 from components.sidebar import render_sidebar
 from components.score_cards import render_scores
 from components.analysis_sections import render_analysis
 
-import os
 
 BACKEND_URL = os.getenv(
     "BACKEND_URL",
@@ -14,26 +19,65 @@ BACKEND_URL = os.getenv(
 
 API_URL = f"{BACKEND_URL}/resume"
 
+
 st.set_page_config(
     page_title="History",
-    page_icon="📚",
     layout="wide"
 )
 
+
+require_auth()
+
 render_sidebar()
 
+
 st.title("Resume Analysis History")
-st.caption("Browse your previously analyzed resumes.")
+
+st.caption(
+    "Browse your previously analyzed resumes."
+)
 
 st.divider()
 
+
 try:
-    response = requests.get(f"{API_URL}/history")
+
+    response = requests.get(
+        f"{API_URL}/history",
+        headers=get_auth_headers()
+    )
+
+    if response.status_code == 401:
+
+        st.error(
+            "Your session has expired. Please log in again."
+        )
+
+        st.session_state.clear()
+
+        st.switch_page(
+            "pages/Login.py"
+        )
+
+    if response.status_code != 200:
+
+        st.error(
+            "Unable to load resume history."
+        )
+
+        st.stop()
+
     history = response.json()
 
-except Exception:
-    st.error("Cannot connect to backend.")
+
+except requests.exceptions.ConnectionError:
+
+    st.error(
+        "Cannot connect to backend."
+    )
+
     st.stop()
+
 
 if len(history) == 0:
 
@@ -47,7 +91,9 @@ Upload your first resume from the Home page.
 
     st.stop()
 
+
 left, right = st.columns([1, 2])
+
 
 with left:
 
@@ -67,21 +113,27 @@ with left:
 
     selected_resume = history[index]
 
+
 with right:
 
     detail = requests.get(
-        f'{API_URL}/{selected_resume["id"]}'
+        f'{API_URL}/{selected_resume["id"]}',
+        headers=get_auth_headers()
     )
 
     if detail.status_code != 200:
 
-        st.error("Unable to load analysis.")
+        st.error(
+            "Unable to load analysis."
+        )
 
         st.stop()
 
     analysis = detail.json()
 
-    st.subheader(f"📄 {analysis['filename']}")
+    st.subheader(
+        f"📄 {analysis['filename']}"
+    )
 
     render_scores(
         analysis["resume_score"],
@@ -97,19 +149,22 @@ with right:
     ):
 
         response = requests.delete(
-            f"{API_URL}/{selected_resume['id']}"
+            f"{API_URL}/{selected_resume['id']}",
+            headers=get_auth_headers()
         )
 
         if response.status_code == 200:
 
-            st.success("Resume deleted successfully!")
+            st.success(
+                "Resume deleted successfully!"
+            )
 
             st.rerun()
 
         else:
 
-            st.error("Unable to delete resume.")
-
-        st.divider()
+            st.error(
+                "Unable to delete resume."
+            )
 
     render_analysis(analysis)

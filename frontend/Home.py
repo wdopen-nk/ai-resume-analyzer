@@ -1,12 +1,17 @@
+import os
+
 import requests
 import streamlit as st
 
+from components.auth import (
+    get_auth_headers,
+    require_auth
+)
 from components.sidebar import render_sidebar
 from components.page_header import render_header
 from components.score_cards import render_scores
 from components.analysis_sections import render_analysis
 
-import os
 
 BACKEND_URL = os.getenv(
     "BACKEND_URL",
@@ -15,31 +20,40 @@ BACKEND_URL = os.getenv(
 
 API_URL = f"{BACKEND_URL}/resume/upload"
 
+
 st.set_page_config(
     page_title="AI Resume Analyzer",
-    page_icon="📄",
     layout="wide"
 )
+
+
+require_auth()
 
 render_sidebar()
 
 render_header()
+
 
 uploaded_file = st.file_uploader(
     "📤 Upload Resume",
     type=["pdf", "docx"]
 )
 
+
 if uploaded_file is not None:
 
-    st.success(f"Selected file: **{uploaded_file.name}**")
+    st.success(
+        f"Selected file: **{uploaded_file.name}**"
+    )
 
     if st.button(
         "Analyze Resume",
         use_container_width=True
     ):
 
-        with st.spinner("AI is analyzing your resume..."):
+        with st.spinner(
+            "AI is analyzing your resume..."
+        ):
 
             files = {
                 "file": (
@@ -53,7 +67,8 @@ if uploaded_file is not None:
 
                 response = requests.post(
                     API_URL,
-                    files=files
+                    files=files,
+                    headers=get_auth_headers()
                 )
 
             except requests.exceptions.ConnectionError:
@@ -64,9 +79,29 @@ if uploaded_file is not None:
 
                 st.stop()
 
+            if response.status_code == 401:
+
+                st.error(
+                    "Your session has expired. Please log in again."
+                )
+
+                st.session_state.clear()
+
+                st.switch_page(
+                    "pages/Login.py"
+                )
+
             if response.status_code != 200:
 
-                st.error(response.json()["detail"])
+                try:
+                    detail = response.json().get(
+                        "detail",
+                        "Unable to analyze resume."
+                    )
+                except Exception:
+                    detail = "Unable to analyze resume."
+
+                st.error(detail)
 
                 st.stop()
 
@@ -74,7 +109,7 @@ if uploaded_file is not None:
 
             analysis = result["analysis"]
 
-        st.success("Analysis Completed")
+        st.success("Analysis Completed!")
 
         render_scores(
             analysis.get("resume_score", 0),
