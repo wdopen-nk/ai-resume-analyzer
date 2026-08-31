@@ -1,89 +1,163 @@
 # AI Resume Analyzer
 
-An AI-powered Resume Analyzer that evaluates resumes against ATS (Applicant Tracking Systems) and provides actionable feedback to improve job applications. The application allows users to upload PDF resumes, analyzes them using a locally running Large Language Model (Ollama), stores previous analyses in a SQLite database, and presents the results through an intuitive Streamlit interface.
+An AI-powered web application that analyzes resumes, evaluates ATS compatibility, identifies strengths and weaknesses, and compares resumes against job descriptions.
 
+Built with FastAPI, Streamlit, Ollama, and SQLite, the application provides a complete resume analysis workflow with user authentication, analysis history, and AI-powered job matching.
 
 ## Features
 
-- Upload PDF resumes
-- AI-powered resume analysis using Ollama
-- Resume quality score
-- ATS compatibility score
-- Skills score
-- Strengths and weaknesses analysis
-- Missing skills detection
-- Personalized recommendations
-- Resume history
-- Delete previous analyses
-- Responsive Streamlit dashboard
-- Docker support
+### AI Resume Analysis
 
+Upload a resume in PDF or DOCX format and receive an AI-generated analysis including:
+
+- Overall Resume Score
+- ATS Compatibility Score
+- Skills Score
+- Resume Strengths
+- Resume Weaknesses
+- Missing Skills
+- Personalized Recommendations
+
+### AI Job Matcher
+
+Compare an analyzed resume against a job description and receive:
+
+- Overall Match Score
+- Skills Match Score
+- Experience Match Score
+- Keyword Match Score
+- Matching Skills
+- Missing Skills
+- Matching Keywords
+- Missing Keywords
+- Personalized Improvement 
+- Recommendations
+
+### Authentication & Authorization
+
+The application supports secure multi-user functionality:
+
+- User Registration
+- User Login
+- JWT Authentication
+- Password Hashing
+- Protected API Endpoints
+- User-specific Resume History
+- Authorization checks to prevent users from accessing other users' data
+
+### Resume History
+
+Users can:
+
+- View previously analyzed resumes
+- Review detailed analysis results
+- Access previous job matches
+- Delete resumes and associated analyses
 
 ## Tech Stack
 
 ### Backend
 
-- Python 3.12
+- Python
 - FastAPI
 - SQLAlchemy
 - SQLite
-- Ollama
-- PyMuPDF
+- JWT Authentication
+- Password Hashing
+- Pydantic
 
 ### Frontend
 
 - Streamlit
+- Requests
 
 ### AI
 
 - Ollama
-- Qwen 2.5 (Manually configurable)
+- Large Language Models for resume analysis and job matching
 
-### Deployment
+### Document Processing
+
+- PDF parsing
+- DOCX parsing
+
+### DevOps
 
 - Docker
 - Docker Compose
 
+## Getting Started
 
-## Analysis Workflow
+### 1. Clone the repository
 
-1. User uploads a PDF resume.
-2. The backend extracts text from the document.
-3. A prompt is generated for the LLM.
-4. Ollama analyzes the resume.
-5. The response is parsed into structured JSON.
-6. Results are stored in SQLite.
-7. Analysis is displayed in the dashboard.
-8. Previous analyses can be viewed or deleted.
+```
+git clone https://github.com/wdopen-nk/ai-resume-analyzer.git
 
-## Scores
+cd ai-resume-analyzer
+```
 
-### Resume Score
+### 2. Install and Run Ollama
 
-Evaluates:
+Install Ollama from the official website.
 
-- Resume structure
-- Formatting
-- Readability
-- Overall quality
+After installation, pull the model used by the application:
 
-### ATS Score
+```
+ollama pull qwen2.5:7b
+```
 
-Evaluates:
+Start Ollama:
 
-- ATS compatibility
-- Keywords
-- Resume parsing quality
-- Section organization
+```
+ollama serve
+```
 
-### Skills Score
+If Ollama is running on your host machine while the backend runs inside Docker, the backend communicates with Ollama through:
 
-Evaluates:
+```
+host.docker.internal:11434
+```
 
-- Technical skills
-- Relevant technologies
-- Experience alignment
-- Missing competencies
+### 3. Configure Environment Variables
+
+Create a `.env` file if required:
+
+```
+SECRET_KEY=your-secret-key
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=60
+```
+
+### 4. Start the application with Docker
+
+Build and start all services:
+
+```
+docker compose up --build
+```
+
+### Access the application
+
+After starting Docker, open:
+
+#### Frontend
+
+```
+http://localhost:8501
+```
+#### Backend API
+
+```
+http://localhost:8000
+```
+
+#### Swagger Documentation
+
+```
+http://localhost:8000/docs
+```
+
+The application will start the backend and frontend containers.
 
 ## Running with Docker
 
@@ -134,59 +208,32 @@ http://localhost:8000/docs
 
 ---
 
-## Running Without Docker
-
-Backend
-
-```bash
-cd backend
-
-python -m venv .venv
-
-source .venv/bin/activate
-```
-
-Windows
-
-```bash
-.venv\Scripts\activate
-```
-
-Install packages
-
-```bash
-pip install -r requirements.txt
-```
-
-Run
-
-```bash
-uvicorn app.main:app --reload
-```
-
----
-
-Frontend
-
-```bash
-cd frontend
-
-pip install -r requirements.txt
-
-streamlit run Home.py
-```
-
----
-
 ## API Endpoints
+
+### Authentication
 
 | Method | Endpoint | Description |
 |----------|--------------------|---------------------------|
-| POST | `/resume/upload` | Upload a resume |
-| GET | `/resume/history` | Retrieve analysis history |
-| DELETE | `/resume/{id}` | Delete a resume |
-| GET | `/docs` | Swagger documentation |
+| POST | `/auth/register` | Register a new user |
+| POST | `/auth/login` | Login and recieve JWT token |
 
+### Resume
+
+| Method | Endpoint | Description |
+|----------|--------------------|---------------------------|
+| POST | `/resume/upload` | Register a new user |
+| GET | `/resume/history` | Login and recieve JWT token |
+| GET | `/resume/{resume_id}` | Register a new user |
+| DELETE | `/resume/{resume_id}` | Login and recieve JWT token |
+
+### Job Matching
+
+| Method | Endpoint | Description |
+|----------|--------------------|---------------------------|
+| POST | `/resume/match` | Register a new user |
+| GET | `/resume/{resume_id}/matches` | Login and recieve JWT token |
+
+Note: All resume and job matching endpoints require authentication.
 
 ## License
 
