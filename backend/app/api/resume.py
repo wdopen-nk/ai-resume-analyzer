@@ -176,10 +176,7 @@ def delete_resume(
     }
 
 
-@router.post(
-    "/match",
-    response_model=JobMatchResponse
-)
+@router.post("/match", response_model=JobMatchResponse)
 def match_resume(
     request: JobMatchRequest,
     current_user: CurrentUser
@@ -203,12 +200,14 @@ def match_resume(
             request.job_description
         )
 
+        print("JOB MATCH RESULT:")
+        print(result)
+
         job_match_id = DatabaseService.save_job_match(
             resume_id=request.resume_id,
             job_title=request.job_title,
             job_description=request.job_description,
-            result=result,
-            user_id=current_user.id
+            result=result
         )
 
         return {
@@ -221,16 +220,26 @@ def match_resume(
 
     except ValueError as e:
 
+        print("JOB MATCH VALUE ERROR:")
+        print(repr(e))
+
         raise HTTPException(
             status_code=400,
             detail=str(e)
         )
 
-    except Exception:
+    except Exception as e:
+
+        # import traceback
+
+        # print("\n========== JOB MATCH ERROR ==========")
+        # print(repr(e))
+        # traceback.print_exc()
+        # print("=====================================\n")
 
         raise HTTPException(
             status_code=500,
-            detail="An unexpected error occurred while matching the resume."
+            detail="Unexpected error occured while matching the resume."
         )
 
 
